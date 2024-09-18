@@ -1,4 +1,4 @@
-#!/usr/bin/env nix-shell
+#!/run/current-system/sw/bin/nix-shell
 #! nix-shell -i fish
 #! nix-shell -p fish wget radeontop
 
