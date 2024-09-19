@@ -6,15 +6,18 @@
 stty -echoctl # hide ^C
 trap "cleanup; exit" INT TERM
 
+set dials cpu gpu mem dsk
+
+set off "red=0&green=0&blue=0"
+set ok "red=0&green=1&blue=0"
+set warn "red=0&green=0&blue=100"
+set alert "red=100&green=0&blue=0"
+
 function cleanup
-    send cpu set "value=0"
-    send gpu set "value=0"
-    send mem set "value=0"
-    send disk set "value=0"
-    send cpu backlight "red=0&green=0&blue=0"
-    send gpu backlight "red=0&green=0&blue=0"
-    send mem backlight "red=0&green=0&blue=0"
-    send disk backlight "red=0&green=0&blue=0"
+    for d in dials
+        send $d set "value=0"
+        send $d backlight $off
+    end
 end
 
 # https://docs.vudials.com/api/dial_UID_set/
@@ -26,20 +29,21 @@ function send
 
     switch $dial
         case cpu
-            set dialuid 6A002D000650564139323920
+            set dialuid $CPUDIAL
         case gpu
-            set dialuid 860043000650564139323920
+            set dialuid $GPUDIAL
         case mem
-            set dialuid 60003D000650564139323920
-        case disk
-            set dialuid 6B002A000650564139323920
+            set dialuid $MEMDIAL
+        case dsk
+            set dialuid $DSKDIAL
         case '*'
             echo invalid dial name
             exit 1
     end
 
-    set output (wget -qO- "http://localhost:5340/api/v0/dial/$dialuid/$action?$params&key=$KEY" | jq ". |= . + {\"date\": \"$(date)\", \"dial\": \"$dial\", \"request\": \"$request\"}")
-    # sleep 0.1
+    if test -n $dialuid
+        set output (wget -qO- "http://localhost:5340/api/v0/dial/$dialuid/$action?$params&key=$KEY" | jq ". |= . + {\"date\": \"$(date)\", \"dial\": \"$dial\", \"request\": \"$request\"}")
+    end
 
 end
 
@@ -53,16 +57,14 @@ while true
 
     send cpu set "value=$cpuused"
 
-    # if test "$cpuused" -gt 100
     if test "$cpuused" -gt 80
-        send cpu backlight "red=100&green=0&blue=0"
+        send cpu backlight $alert
         set cpucolor red
-        # else if test "$cpuused" -gt 50
-    else if test "$cpuused" -gt 50
-        send cpu backlight "red=0&green=0&blue=100"
+    else if test "$cpuused" -ge 50
+        send cpu backlight $warn
         set cpucolor blue
     else
-        send cpu backlight "red=0&green=1&blue=0"
+        send cpu backlight $ok
         set cpucolor green
     end
 
@@ -70,14 +72,14 @@ while true
 
     send gpu set "value=$gpuused"
 
-    if test "$gpuused" -gt 75
-        send gpu backlight "red=100&green=0&blue=0"
+    if test "$gpuused" -ge 75
+        send gpu backlight $alert
         set gpucolor red
     else if test "$gpuused" -gt 30
-        send gpu backlight "red=0&green=0&blue=100"
+        send gpu backlight $warn
         set gpucolor blue
     else
-        send gpu backlight "red=0&green=1&blue=0"
+        send gpu backlight $ok
         set gpucolor green
     end
 
@@ -87,38 +89,37 @@ while true
 
     send mem set "value=$memused"
 
-    # if test "$memused" -gt 85
-    if test "$memused" -gt 50
-        send mem backlight "red=100&green=0&blue=0"
+    if test "$memused" -ge 50
+        send mem backlight $alert
         set memcolor red
         # else if test "$memused" -gt 60
-    else if test "$memused" -gt 25
-        send mem backlight "red=0&green=0&blue=100"
+    else if test "$memused" -ge 25
+        send mem backlight $warn
         set memcolor blue
     else
-        send mem backlight "red=0&green=1&blue=0"
+        send mem backlight $ok
         set memcolor green
     end
 
-    set diskused (df -h | grep "/\$" | awk '{print $5}' | sed 's/\(\d*\)%/\1/g')
+    set dskused (df -h | grep "/\$" | awk '{print $5}' | sed 's/\(\d*\)%/\1/g')
 
-    send disk set "value=$diskused"
+    send dsk set "value=$dskused"
 
-    if test "$diskused" -gt 50
-        send disk backlight "red=100&green=0&blue=0"
-        set diskcolor red
-    else if test "$diskused" -gt 25
-        send disk backlight "red=0&green=0&blue=100"
-        set diskcolor blue
+    if test "$dskused" -ge 50
+        send dsk backlight $alert
+        set dskcolor red
+    else if test "$dskused" -ge 25
+        send dsk backlight $warn
+        set dskcolor blue
     else
-        send disk backlight "red=0&green=1&blue=0"
-        set diskcolor green
+        send dsk backlight $ok
+        set dskcolor green
     end
 
     set cpuused (string pad --width 3 $cpuused)
     set gpuused (string pad --width 3 $gpuused)
     set memused (string pad --width 3 $memused)
-    set diskused (string pad --width 3 $diskused)
+    set dskused (string pad --width 3 $dskused)
     set_color --bold 888
     echo -n $(date "+%F %T ")
     set_color normal
@@ -135,8 +136,8 @@ while true
     echo -n " $memused% "
     set_color normal
     echo -n dsk
-    set_color $diskcolor
-    echo -n " $diskused% "
+    set_color $dskcolor
+    echo -n " $dskused% "
     set_color normal
     echo ""
 
