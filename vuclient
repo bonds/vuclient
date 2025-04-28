@@ -114,10 +114,10 @@ while true
 
     send dsk set "value=$dskused"
 
-    if test "$dskused" -ge 50
+    if test "$dskused" -ge 75
         send dsk backlight $alert
         set dskcolor red
-    else if test "$dskused" -ge 25
+    else if test "$dskused" -ge 50
         send dsk backlight $warn
         set dskcolor blue
     else
