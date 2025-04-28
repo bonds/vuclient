@@ -49,11 +49,18 @@ end
 
 while true
 
-    set KEY (cat /run/vuserver/key) 
+    if test -e /run/vuserver/key
+        set KEY (cat /run/vuserver/key) 
+    else
+        echo "error: the API key is not available so the server won't be updated"
+    end
 
-    # set cpuidle (vmstat 1 2|tail -1|awk '{print $15}')
-    # set cpuused (math "100 - $cpuidle")
-    set cpuused (math -s0 (cat /proc/pressure/cpu | grep some | sed 's/.*avg10=\([0-9]*\.[0-9]*\).*/\1/g'))
+    if test -e /proc/pressure/cpu
+        set cpuused (math -s0 (cat /proc/pressure/cpu | grep some | sed 's/.*avg10=\([0-9]*\.[0-9]*\).*/\1/g'))
+    else
+        set cpuidle (vmstat 1 2|tail -1|awk '{print $15}')
+        set cpuused (math "100 - $cpuidle")
+    end
 
     send cpu set "value=$cpuused"
 
@@ -83,10 +90,12 @@ while true
         set gpucolor green
     end
 
-    # set memused (math -s0 (vmstat -s | awk  ' $0 ~ /total memory/ {total=$1 } $0 ~/free memory/ {free=$1} $0 ~/buffer memory/ {buffer=$1} $0 ~/cache/ {cache=$1} END{print (total-free-buffer-cache)/total*100}'))
 
-    set memused (math -s0 "$(cat /proc/pressure/memory | grep some | sed 's/.*avg10=\([0-9]*\.[0-9]*\).*/\1/g') * 5")
-
+    if test -e /proc/pressure/cpu
+        set memused (math -s0 "$(cat /proc/pressure/memory | grep some | sed 's/.*avg10=\([0-9]*\.[0-9]*\).*/\1/g') * 5")
+    else
+        set memused (math -s0 (vmstat -s | awk  ' $0 ~ /total memory/ {total=$1 } $0 ~/free memory/ {free=$1} $0 ~/buffer memory/ {buffer=$1} $0 ~/cache/ {cache=$1} END{print (total-free-buffer-cache)/total*100}'))
+    end
     send mem set "value=$memused"
 
     if test "$memused" -ge 50
